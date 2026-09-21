@@ -12,7 +12,11 @@ from sklearn.preprocessing import OneHotEncoder
 from .config import CATEGORICAL_FEATURES, NUMERIC_FEATURES, RANDOM_STATE, TEXT_FEATURE
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline(min_df: int=20,
+                   n_components: int=50,
+                   min_frequency: int=20,
+                   max_iter: int=300
+                   ) -> Pipeline:
     """Returns an unfitted end-to-end Pipeline.
 
     The transformers are pure stateless config; ``fit`` learns everything.
@@ -21,11 +25,11 @@ def build_pipeline() -> Pipeline:
         TfidfVectorizer(
             lowercase=True,
             ngram_range=(1, 2),
-            min_df=20,
+            min_df=min_df,
             max_features=20_000,
             stop_words="english",
         ),
-        TruncatedSVD(n_components=50, random_state=RANDOM_STATE),
+        TruncatedSVD(n_components=n_components, random_state=RANDOM_STATE),
     )
 
     preprocessor = ColumnTransformer(
@@ -40,7 +44,7 @@ def build_pipeline() -> Pipeline:
                             "ohe",
                             OneHotEncoder(
                                 handle_unknown="ignore",
-                                min_frequency=20,
+                                min_frequency=min_frequency,
                                 sparse_output=False,
                             ),
                         ),
@@ -58,7 +62,7 @@ def build_pipeline() -> Pipeline:
             (
                 "regressor",
                 HistGradientBoostingRegressor(
-                    max_iter=300,
+                    max_iter=max_iter,
                     learning_rate=0.05,
                     max_depth=8,
                     random_state=RANDOM_STATE,

@@ -4,6 +4,7 @@ from __future__ import annotations
 MS_PER_DAY: int = 1000 * 60 * 60 * 24
 AGE_FLOOR_DAYS: float = 1.0
 RANDOM_STATE: int = 42
+PIPELINE_PARAMS = {"min_df": 20, "n_components": 50, "min_frequency": 20, "max_iter": 300}
 
 NUMERIC_FEATURES: list[str] = [
     "normalized_salary",

@@ -31,6 +31,7 @@ from .config import (
     RANDOM_STATE,
     SCHEMA_VERSION,
     TEXT_FEATURE,
+    PIPELINE_PARAMS
 )
 from .features import build_features, load_company_industry
 from .pipeline import build_pipeline
@@ -75,13 +76,13 @@ def train(
     )
 
     # --- Model 1: predict views directly ----------------------------------
-    model_views = build_pipeline()
+    model_views = build_pipeline(**PIPELINE_PARAMS)
     model_views.fit(X_train, np.log1p(y_train))
 
     # --- Model 2: predict views per day -----------------------------------
     age_train = feats.loc[X_train.index, "age_days"].clip(lower=AGE_FLOOR_DAYS)
     age_test = feats.loc[X_test.index, "age_days"].clip(lower=AGE_FLOOR_DAYS)
-    model_vpd = build_pipeline()
+    model_vpd = build_pipeline(**PIPELINE_PARAMS)
     model_vpd.fit(X_train, np.log1p(y_train / age_train))
 
     # --- Evaluation -------------------------------------------------------

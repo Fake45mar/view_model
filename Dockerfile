@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # --- Application code + pre-built artifact -------------------------------
 COPY pyproject.toml ./
 COPY src ./src
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir --no-deps .
 
 # The trained artifact is built outside the image and copied in.
 # Run `views-train --postings data/postings.csv --companies data/companies/company_industries.csv`

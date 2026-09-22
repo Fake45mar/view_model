@@ -5,7 +5,7 @@ posting will receive.
 
 Architecture notes, tradeoffs and failure modes: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-## Quickstart — no dataset required
+## Quickstart, no dataset required
 
 Everything below runs on synthetic data generated in-process. No Kaggle
 download, no credentials, no cloud.
@@ -24,7 +24,7 @@ make docker-smoke     # curls /ready and /predict
 ```
 
 > The demo artifact is trained on invented rows. Its predictions are
-> meaningless — it exists to exercise the packaging and serving path. See
+> meaningless. It exists to exercise the packaging and serving path. See
 > [Training on real data](#training-on-real-data) for a usable model.
 
 ## Endpoints
@@ -32,7 +32,7 @@ make docker-smoke     # curls /ready and /predict
 | method | path | purpose |
 |---|---|---|
 | `GET` | `/health` | Liveness. 200 whenever the process is up, **even if the model failed to load.** |
-| `GET` | `/ready` | Readiness. 200 when startup validation passed; **503 with the failing check** otherwise. |
+| `GET` | `/ready` | Readiness. 200 when startup validation passed. **503 with the failing check** if not. |
 | `GET` | `/model-info` | Training metrics and artifact provenance (sklearn version, split boundary, feature list). |
 | `POST` | `/predict` | Batch prediction, capped at `VIEWS_MODEL_MAX_BATCH` (default 500). |
 
@@ -103,7 +103,7 @@ docker inspect --format '{{json .Config.Labels}}' views-model:$(git describe --a
 
  Tag
 *immutability* is a registry policy (an ECR repository setting), not something
-Docker enforces — see the architecture notes.
+Docker enforces. See the architecture notes.
 
 `VIEWS_MODEL_ARTIFACT` overrides the artifact path.
 
@@ -144,11 +144,11 @@ Two regressors are fit on the same feature set and stored in one bundle:
 | `views` | `log1p(views)` | total views accumulated to date |
 | `views_per_day` | `log1p(views / age_days)` | rank postings by intrinsic attractiveness |
 
-Both are evaluated on a **time-based** holdout — the most recent 20% of
-postings — and the metrics are persisted in the bundle and served by
-`/model-info`. The initial code used a random split; on time-ordered data
-that leaks the future into training and inflates the score. Numbers and
-discussion are in the architecture notes.
+Both are evaluated on a **time-based** holdout, the most recent 20% of
+postings. The metrics are stored in the bundle and served by `/model-info`.
+The initial code used a random split. On time-ordered data that leaks the
+future into training and makes the score look better than it is. The numbers
+are in the architecture notes.
 
 ## Tests
 
@@ -157,7 +157,7 @@ make test
 ```
 
 28 tests, about a second. They run on synthetic fixtures generated in-process
-and **pass with `data/` absent entirely** — that is what keeps CI fast,
+and **pass with `data/` absent entirely**. That is what keeps CI fast,
 deterministic, and independent of a full kaggle dataset download.
 
 ## Assumptions
@@ -171,11 +171,11 @@ deterministic, and independent of a full kaggle dataset download.
 - **`data/` and `artifacts/` are never committed.** Datasets come from Kaggle,
   artifacts are build output. In production artifacts come from a registry.
 - **The model is loaded once, at boot.** Replacing the artifact file on a
-  running container does nothing; a new model means a new image and a new
+  running container does nothing. A new model means a new image and a new
   digest. This keeps model and code releases separately identifiable.
 - **The container runs as a non-root user** and does not own the artifact
   files, so the serving process can read the model but not modify it.
 - **Timestamps are epoch milliseconds**, matching `postings.csv`.
 - **The service scores one posting at a time against the current clock.**
   Age features are measured from request time, not from a value frozen at
-  training — see finding #1 in the architecture notes.
+  training. See finding #1 in the architecture notes.

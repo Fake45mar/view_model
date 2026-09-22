@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.6
-FROM python:3.12-slim AS base
+FROM python:3.10-slim AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -25,9 +25,11 @@ COPY artifacts ./artifacts
 ENV VIEWS_MODEL_ARTIFACT=/app/artifacts/views_baseline.joblib \
     PORT=8000
 
-EXPOSE 8000
+EXPOSE ${PORT}
+RUN useradd --create-home --uid 10001 appuser
+USER appuser
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request,sys; \
-        sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"
+        sys.exit(0 if urllib.request.urlopen('http://localhost:${PORT}/ready').status==200 else 1)"
 
-CMD ["sh", "-c", "uvicorn views_model.api:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "exec uvicorn views_model.api:app --host 0.0.0.0 --port ${PORT}"]

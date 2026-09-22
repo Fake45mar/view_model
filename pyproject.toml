@@ -17,8 +17,15 @@ dependencies = [
     "pydantic==2.13.5",
 ]
 
+[project.optional-dependencies]
+test = [
+    "pytest==9.1.1",
+    "httpx==0.28.1",
+]
+
 [project.scripts]
 views-train = "views_model.train:main"
+views-demo-artifact = "views_model.synthetic:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -1,0 +1,135 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  PYTHON_VERSION: "3.10"
+  IMAGE_NAME: views-model
+
+jobs:
+  # ---------------------------------------------------------------------
+  # Unit tests. Runs on synthetic fixtures only -- no Kaggle download, no
+  # data/ directory, a few seconds end to end.
+  # ---------------------------------------------------------------------
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install pinned runtime dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Install package and test extras
+        run: pip install --no-cache-dir -e ".[test]"
+
+      - name: Verify the suite does not depend on the dataset
+        run: |
+          test ! -d data || (echo "data/ must not be committed" && exit 1)
+
+      - name: Run tests
+        run: pytest -q
+
+  # ---------------------------------------------------------------------
+  # Build the serving image and prove it can answer a prediction.
+  #
+  # The artifact baked in here is trained on synthetic rows: this job
+  # validates the packaging and serving path, and produces a throwaway
+  # image. A release image is built from a real, registered artifact.
+  # ---------------------------------------------------------------------
+  container:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install pinned runtime dependencies
+        run: |
+          pip install --no-cache-dir -r requirements.txt
+          pip install --no-cache-dir --no-deps -e .
+
+      - name: Build demo artifact from synthetic data
+        run: python -m views_model.synthetic --out artifacts/views_baseline.joblib
+
+      # Tag is the git SHA; everything else that identifies this build goes
+      # into OCI labels, where it stays queryable instead of being stuffed
+      # into the tag string. Promotion between environments re-uses the
+      # digest, never a rebuild.
+      - name: Build image
+        run: |
+          docker build \
+            --tag "${IMAGE_NAME}:${GITHUB_SHA}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.created=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --label "com.views-model.artifact=synthetic-demo" \
+            .
+
+      - name: Start container
+        run: |
+          docker run -d --name views-model -p 8000:8000 "${IMAGE_NAME}:${GITHUB_SHA}"
+
+      # /ready returns 503 until startup validation passes, so polling it is
+      # a real check that the model loaded -- not just that the port is open.
+      - name: Wait for readiness
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/ready; then
+              echo "ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "container never became ready"
+          docker logs views-model
+          exit 1
+
+      - name: Smoke-test a prediction
+        run: |
+          response=$(curl -fsS -X POST http://localhost:8000/predict \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "postings": [{
+                "title": "senior data engineer",
+                "company_id": 1,
+                "description": "we are hiring",
+                "normalized_salary": 120000,
+                "formatted_work_type": "FULL_TIME",
+                "formatted_experience_level": "Mid-Senior level",
+                "pay_period": "YEARLY",
+                "application_type": "OffsiteApply",
+                "original_listed_time": 1704067200000,
+                "listed_time": 1704067200000,
+                "expiry": 1706659200000
+              }],
+              "target": "views"
+            }')
+          echo "$response"
+          echo "$response" | python3 -c "
+          import json, sys
+          body = json.load(sys.stdin)
+          assert body['target'] == 'views', body
+          assert len(body['predictions']) == 1, body
+          assert body['predictions'][0] >= 0, body
+          print('prediction OK:', body['predictions'][0])
+          "
+
+      - name: Container logs
+        if: always()
+        run: docker logs views-model
+
+      - name: Stop container
+        if: always()
+        run: docker rm -f views-model || true

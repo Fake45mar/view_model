@@ -15,11 +15,11 @@ import pathlib
 from typing import Any
 
 import joblib
+import sklearn
 import numpy as np
 import pandas as pd
 from sklearn.dummy import DummyRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
 
 from .config import (
     AGE_FLOOR_DAYS,
@@ -28,7 +28,6 @@ from .config import (
     FEATURE_COLS,
     MS_PER_DAY,
     NUMERIC_FEATURES,
-    RANDOM_STATE,
     SCHEMA_VERSION,
     TEXT_FEATURE,
     PIPELINE_PARAMS
@@ -52,6 +51,7 @@ def train(
     companies_path: str,
     out_path: str = DEFAULT_ARTIFACT_PATH,
     test_size: float = 0.2,
+    pipeline_params: dict = PIPELINE_PARAMS
 ) -> dict[str, Any]:
     """Train the two baseline models and write the artifact bundle."""
     logger.info("Loading data: %s, %s", postings_path, companies_path)
@@ -71,18 +71,33 @@ def train(
     y = feats["views"]
     logger.info("Modelling rows: %d  features: %d", len(feats), len(FEATURE_COLS))
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=RANDOM_STATE
+    # Time-based split. A random split leaks the future into training: postings
+    # are time-ordered, and the service is always asked about postings newer
+    # than anything it was trained on. Holding out the most recent slice is the
+    # only evaluation that matches how the model is actually used.
+    order = feats["original_listed_time"].sort_values().index
+    n_test = max(1, int(round(len(order) * test_size)))
+    train_idx, test_idx = order[:-n_test], order[-n_test:]
+
+    X_train, X_test = X.loc[train_idx], X.loc[test_idx]
+    y_train, y_test = y.loc[train_idx], y.loc[test_idx]
+
+    split_time_ms = float(feats.loc[test_idx, "original_listed_time"].min())
+    logger.info(
+        "Time split: %d train / %d test, holdout starts at %.0f",
+        len(train_idx),
+        len(test_idx),
+        split_time_ms,
     )
 
     # --- Model 1: predict views directly ----------------------------------
-    model_views = build_pipeline(**PIPELINE_PARAMS)
+    model_views = build_pipeline(**pipeline_params)
     model_views.fit(X_train, np.log1p(y_train))
 
     # --- Model 2: predict views per day -----------------------------------
     age_train = feats.loc[X_train.index, "age_days"].clip(lower=AGE_FLOOR_DAYS)
     age_test = feats.loc[X_test.index, "age_days"].clip(lower=AGE_FLOOR_DAYS)
-    model_vpd = build_pipeline(**PIPELINE_PARAMS)
+    model_vpd = build_pipeline(**pipeline_params)
     model_vpd.fit(X_train, np.log1p(y_train / age_train))
 
     # --- Evaluation -------------------------------------------------------
@@ -99,6 +114,7 @@ def train(
 
     bundle = {
         "schema_version": SCHEMA_VERSION,
+        "sklearn_version": sklearn.__version__,
         "models": {"views": model_views, "views_per_day": model_vpd},
         "feature_cols": FEATURE_COLS,
         "numeric_features": NUMERIC_FEATURES,
@@ -106,6 +122,7 @@ def train(
         "text_feature": TEXT_FEATURE,
         "company_industry": company_industry,
         "snapshot_ms": snapshot_ms,
+        "split_time_ms": split_time_ms,
         "ms_per_day": MS_PER_DAY,
         "age_floor_days": AGE_FLOOR_DAYS,
         "target_transform": "log1p",

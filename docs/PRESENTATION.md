@@ -316,9 +316,3 @@ condition for each: a registry when a second person starts training models, data
 versioning when a second person produces training data, an orchestrator when
 retraining has steps that need their own retries.
 
----
-
-## If asked how this was built
-
-I used Claude as a pair for the implementation. The findings, the priorities and
-the tradeoffs are mine.

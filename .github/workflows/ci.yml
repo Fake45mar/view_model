@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
 
+# The workflow only reads the repository. It publishes nothing, so it gets
+# nothing else.
+permissions:
+  contents: read
+
+# A new push replaces the run that is still going for the same branch. Without
+# this, fast pushes queue duplicate runs that all become outdated anyway.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   PYTHON_VERSION: "3.10"
   IMAGE_NAME: views-model
@@ -16,6 +27,7 @@ jobs:
   # ---------------------------------------------------------------------
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +59,7 @@ jobs:
   container:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 

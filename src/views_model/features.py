@@ -25,6 +25,9 @@ def build_features(
     raw : DataFrame with the schema of ``postings.csv``.
     company_industry : 1:1 ``company_id -> industry`` lookup.
     snapshot_ms : reference "now" in epoch ms; controls ``age_days``.
+        At training this is the newest listing in the data. At serving it must
+        be the time of the request -- never the value frozen into the bundle,
+        or every posting listed after training gets a negative age.
     """
     out = raw.merge(company_industry, on="company_id", how="left").copy()
 
@@ -42,7 +45,11 @@ def build_features(
     out["title"] = out["title"].fillna("") if "title" in out.columns else ""
 
     out["planned_duration_days"] = (out["expiry"] - out["original_listed_time"]) / ms_per_day
-    out["age_days"] = (snapshot_ms - out["original_listed_time"]) / ms_per_day
-    out["days_since_relisted"] = (snapshot_ms - out["listed_time"]) / ms_per_day
+    # Clipped at zero: at training time the reference is the newest listing so
+    # ages are non-negative by construction, but at serving time a posting can
+    # carry a timestamp ahead of the reference. The model never saw negative
+    # ages, so feeding it one is out-of-distribution garbage.
+    out["age_days"] = ((snapshot_ms - out["original_listed_time"]) / ms_per_day).clip(lower=0)
+    out["days_since_relisted"] = ((snapshot_ms - out["listed_time"]) / ms_per_day).clip(lower=0)
     out["was_relisted"] = (out["listed_time"] != out["original_listed_time"]).astype(int)
     return out

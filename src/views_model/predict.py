@@ -1,6 +1,7 @@
 """Load a saved bundle and run end-to-end inference on raw postings."""
 from __future__ import annotations
 
+import time
 from functools import lru_cache
 from typing import Any
 
@@ -30,19 +31,30 @@ def predict_views(
     raw: pd.DataFrame,
     bundle: dict[str, Any],
     target: Target = "views",
+    now_ms: float | None = None,
 ) -> np.ndarray:
     """Predict total views for one or more raw posting rows.
 
     target='views'         -> direct model
     target='views_per_day' -> rate model, converted back to total views
+
+    ``now_ms`` is the reference time age features are measured against and
+    defaults to the moment of the call. It is deliberately *not*
+    ``bundle["snapshot_ms"]``: that value is frozen at training, so using it
+    here gives any posting listed after the training run a negative age --
+    an input the model has never seen. The bundle keeps ``snapshot_ms`` as
+    training provenance only.
     """
     if target not in bundle["models"]:
         raise ValueError(f"target must be one of {list(bundle['models'])}")
 
+    if now_ms is None:
+        now_ms = time.time() * 1000
+
     feats = build_features(
         raw,
         company_industry=bundle["company_industry"],
-        snapshot_ms=bundle["snapshot_ms"],
+        snapshot_ms=now_ms,
         ms_per_day=bundle["ms_per_day"],
     )
     X = feats[bundle["feature_cols"]]

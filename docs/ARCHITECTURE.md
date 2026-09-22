@@ -14,15 +14,15 @@ pipeline. Sections 5 and 6 are design only, not code.
 | | before | after |
 |---|---|---|
 | `age_days` when serving | always **−885**, the same for every posting | measured from the request time |
-| offline R² (`views`) | 0.048 (random split) | **−0.023** (time split) |
+| offline R² (`views`) | 0.052 (random split) | **0.003** (time split) |
 | tests | 1 test, needed a 504 MB download | **28 tests, 0.7 s, no dataset** |
 | container shutdown | SIGTERM ignored, killed after timeout | **0 s**, clean shutdown |
 | container user | root | normal user, cannot change the model file |
 | bad model file at start | process crashes | process stays up, `/ready` returns 503 and says why |
 
 The second row looks like a step back. It is not. The random split was making
-the score look better than it was. The real result is that this model is
-**worse than just predicting the average**. I explain this in section 3.
+the score look better than it was. The honest result is that this model
+**explains almost none of the variance** in views. I explain this in section 3.
 
 ---
 
@@ -80,8 +80,17 @@ rows:
 
 | split | MAE | R² |
 |---|---|---|
-| random | 10.15 | 0.048 |
-| time-based | 12.19 | −0.023 |
+| random | 9.79 | 0.052 |
+| time-based | 2.82 | 0.003 |
+
+Measured on the full dataset, 122,160 rows with views.
+
+**Read R², not MAE.** The two test sets are different. The time-based test set
+is the newest 20% of postings, and new postings have collected fewer views. A
+smaller target gives a smaller absolute error, so MAE looks better while the
+model got no better. R² is measured against the variance of its own test set,
+so it is the one that compares. It falls from 0.052 to 0.003, which is
+effectively nothing.
 
 **Fix:** keep the newest 20% as the test set. The model file now stores
 `split_time_ms`, the time where the test set starts. Later this lets us check

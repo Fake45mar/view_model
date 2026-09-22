@@ -17,7 +17,9 @@ not slides.
 | 10-13 | Retraining and LLM enrichment, diagrams only |
 | 13-15 | What I would do next, and questions |
 
-If time runs short, cut the LLM part to one minute. Do not cut the age bug.
+The age bug is the part worth the most time. If the discussion runs long,
+the LLM section compresses to a minute and the detail stays in the
+architecture notes.
 
 ---
 
@@ -44,8 +46,6 @@ one badly in four hours would be worse than a clear plan.
 
 ## 2-7 min. Findings
 
-Lead with this one. It is the strongest thing I have.
-
 ### The age bug
 
 One feature is `age_days`. It is `reference_time − posting_listed_time`.
@@ -64,7 +64,6 @@ During training the model only saw ages from **0 to 136 days**. The trees learn
 rules like "is age below 12 days?". Every negative number is below every rule,
 so they all follow the same path and give the same answer.
 
-**Show this table.** It is the whole story.
 
 | posting age | prediction, old code | prediction, fixed |
 |---|---|---|
@@ -93,12 +92,16 @@ ordered by time, so the model was training on rows newer than its own test set.
 
 | split | MAE | R² |
 |---|---|---|
-| random | 10.15 | 0.048 |
-| time-based | 12.19 | **−0.023** |
+| random | 9.79 | 0.052 |
+| time-based | 2.82 | **0.003** |
 
-R² below zero means the model is worse than predicting the average.
+Compare R², not MAE. The two test sets are different. The newest postings have
+collected fewer views, so a smaller target gives a smaller absolute error. R²
+is measured against its own test set, so it is the one that compares.
 
-**Say this plainly.** The random split was the only thing making this model
+0.003 means the model explains almost none of the variance.
+
+The random split was the only thing making this model
 look like it worked. I could have left it and shown a better number. The honest
 number is more useful to the team that owns this model.
 
@@ -184,7 +187,7 @@ waited for the timeout and killed it.
 
 ## 10-13 min. Design only
 
-Show the two diagrams from the architecture notes. Do not read them out.
+The two diagrams in the architecture notes cover both of these.
 
 ### Retraining
 

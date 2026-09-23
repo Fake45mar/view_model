@@ -75,8 +75,7 @@ zero. This does nothing during training and protects the model when serving.
 ### #2 - Random split on time-ordered data (fixed)
 
 `train_test_split` shuffled the rows. The postings are ordered by time, so the
-model trained on rows that are newer than its own test set. Results on 40k
-rows:
+model trained on rows that are newer than its own test set. Results:
 
 | split | MAE | R² |
 |---|---|---|
@@ -160,10 +159,10 @@ what this task measures. I am flagging it for the team that owns the model.
 
 ## 3. Decisions and tradeoffs
 
-**Show the honest number.** The time split made R² negative. Keeping the random
-split would look better but would mean nothing. The real result is that this
-baseline does not beat the average on a fair test. The product team needs to
-know this before anyone builds on top of it.
+**Show the honest number.** On a fair split R² drops from 0.052 to 0.003.
+Keeping the random split would look better but would mean nothing. The real
+result is that this baseline explains almost none of the variation in views.
+The product team needs to know this before anyone builds on top of it.
 
 **What question does the model answer?** `views` is a total count. A new
 posting has almost no views, so the model correctly predicts almost zero. This
@@ -332,7 +331,7 @@ flowchart LR
     B --> C[Candidate model<br/>+ data id, code sha, metrics]
     C --> D{Validation checks}
     D -- fail --> E[Alert the owning team<br/>candidate dropped]
-    D -- pass --> F[Registry: staged]
+    D -- pass --> F[Registry, staged]
     F --> G[Shadow traffic<br/>no user impact]
     G -- good --> H[Human approves]
     G -- worse --> E
@@ -470,11 +469,11 @@ automatically mean better predictions, so both are measured.
 ```mermaid
 flowchart LR
     A[Kaggle dataset<br/>local, not committed] --> B[make train]
-    B --> C[artifacts/*.joblib<br/>model + version info]
+    B --> C[joblib artifact<br/>model + version info]
     C --> D[docker build<br/>tag = git sha]
     D --> E[Image, identified by digest]
     E --> F[FastAPI<br/>/ready gates /predict]
-    G[CI: test, build, run, predict] --> E
+    G[CI - test, build, run, predict] --> E
 ```
 
 **Target - with the condition for each addition:**

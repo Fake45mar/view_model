@@ -236,13 +236,14 @@ counts, and a hash of the input.
 
 ## Questions to expect
 
-### Would you deploy a model with R² below zero?
+### Would you deploy a model with R² of 0.003?
 
 No. And that is the point of measuring it properly.
 
 The model is not the deliverable here, the pipeline is. What I would hand back
-is: the baseline does not beat the average on a fair test, the previous number
-came from a leaky split, and here are two specific things to try first. Drop
+is: on a fair test the baseline explains almost none of the variation, the
+previous number came from a leaky split, and here are two specific things to
+try first. Drop
 `was_relisted`, which is probably leakage, and decide whether the target should
 be views per day rather than total views.
 
